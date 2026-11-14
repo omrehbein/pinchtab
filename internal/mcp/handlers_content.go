@@ -20,6 +20,9 @@ func handleEval(c *Client) func(context.Context, mcp.CallToolRequest) (*mcp.Call
 		if tabID := optString(r, "tabId"); tabID != "" {
 			payload["tabId"] = tabID
 		}
+		if v, ok := optBool(r, "awaitPromise"); ok && v {
+			payload["awaitPromise"] = true
+		}
 		body, code, err := c.Post(ctx, "/evaluate", payload)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil

@@ -22,6 +22,7 @@ func allTools() []mcp.Tool {
 			mcp.WithDescription("Navigate to a URL in the browser"),
 			mcp.WithString("url", mcp.Required(), mcp.Description("The URL to navigate to")),
 			tabIDParam(),
+			mcp.WithBoolean("newTab", mcp.Description("Open the URL in a new tab instead of reusing the current one; the returned tabId targets it in later tools")),
 			mcp.WithBoolean("snap", mcp.Description("Return interactive compact snapshot after navigation (saves a round-trip)")),
 			browserParam(),
 		),
@@ -210,8 +211,9 @@ func allTools() []mcp.Tool {
 		),
 
 		mcp.NewTool("pinchtab_eval",
-			mcp.WithDescription("Execute JavaScript in the browser and return the result. This is not frame-scoped; current pinchtab_frame state does not change evaluation context."),
+			mcp.WithDescription("Execute JavaScript in the browser and return the result. This is not frame-scoped; current pinchtab_frame state does not change evaluation context. Use awaitPromise:true with an expression returning a Promise to receive its resolved value in this call."),
 			expressionParam("expression"),
+			mcp.WithBoolean("awaitPromise", mcp.Description("Resolve a returned Promise before responding, returning its resolved value (matches CLI --await-promise)")),
 			tabIDParam(),
 		),
 		mcp.NewTool("pinchtab_pdf",
