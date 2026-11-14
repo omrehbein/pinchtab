@@ -14,6 +14,7 @@
 # npm package
 # package-lock.json is committed for reproducible installs via npm ci
 *.js
+!internal/assets/*.js
 !npm/scripts/*.js
 !npm/eslint.config.js
 *.pyc
@@ -26,7 +27,13 @@
 .venv/
 .claude
 .agents
+# Local IDE, MCP configuration and agent execution documents
+/.idea/
+/.dsh/
+/docs/superpowers/
 /pinchtab
+!internal/bridge/runtime/
+!internal/bridge/runtime/**
 AGENTS.md
 BOOTSTRAP.md
 HEARTBEAT.md
