@@ -798,7 +798,7 @@ func TestApplyFileConfigToRuntime_CloakBrowserSettings(t *testing.T) {
 		cfg.Cloak.Locale != "en-GB" ||
 		cfg.Cloak.Timezone != "Europe/London" ||
 		cfg.Cloak.WebRTCIP != "auto" ||
-		cfg.Cloak.FontsDir != "/opt/fonts" ||
+		cfg.Cloak.FontsDir != filepath.Clean("/opt/fonts") ||
 		cfg.Cloak.StorageQuotaMB != quota ||
 		cfg.Cloak.DisableDefaultStealthArgs {
 		t.Fatalf("Cloak settings not applied: %+v", cfg.Cloak)
@@ -1505,5 +1505,93 @@ func TestAnExplicitProfilesBaseDirStillWins(t *testing.T) {
 
 	if got := Load().ProfilesBaseDir; got != explicit {
 		t.Errorf("ProfilesBaseDir = %q, want the explicitly configured %q", got, explicit)
+	}
+}
+
+func TestRelativeFilesystemPathsResolveFromConfigDirectory(t *testing.T) {
+	clearConfigEnvVars(t)
+	configDirectory := t.TempDir()
+	configPath := filepath.Join(configDirectory, "config.json")
+	body := `{"server":{"port":"9867","token":"tok","stateDir":"."},"browser":{"binary":"bin/chrome.exe","extensionPaths":["extensions/one","extensions/two"]},"profiles":{"baseDir":"profiles-custom"}}`
+	if err := os.WriteFile(configPath, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PINCHTAB_CONFIG", configPath)
+	originalWorkingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(originalWorkingDirectory); err != nil {
+			t.Errorf("restore working directory: %v", err)
+		}
+	})
+	cfg := Load()
+	if cfg.StateDir != configDirectory {
+		t.Errorf("StateDir = %q, want config directory %q", cfg.StateDir, configDirectory)
+	}
+	wantBrowserBinary := filepath.Join(configDirectory, "bin", "chrome.exe")
+	if cfg.BrowserBinary != wantBrowserBinary {
+		t.Errorf("BrowserBinary = %q, want %q", cfg.BrowserBinary, wantBrowserBinary)
+	}
+	wantExtensions := []string{filepath.Join(configDirectory, "extensions", "one"), filepath.Join(configDirectory, "extensions", "two")}
+	if strings.Join(cfg.ExtensionPaths, "|") != strings.Join(wantExtensions, "|") {
+		t.Errorf("ExtensionPaths = %v, want %v", cfg.ExtensionPaths, wantExtensions)
+	}
+	wantProfilesBaseDir := filepath.Join(configDirectory, "profiles-custom")
+	if cfg.ProfilesBaseDir != wantProfilesBaseDir {
+		t.Errorf("ProfilesBaseDir = %q, want %q", cfg.ProfilesBaseDir, wantProfilesBaseDir)
+	}
+}
+
+func TestAbsoluteFilesystemPathsRemainUnchanged(t *testing.T) {
+	clearConfigEnvVars(t)
+	configDirectory := t.TempDir()
+	stateDirectory := filepath.Join(t.TempDir(), "state")
+	browserBinary := filepath.Join(t.TempDir(), "chrome.exe")
+	extensionPath := filepath.Join(t.TempDir(), "extension")
+	profilesBaseDirectory := filepath.Join(t.TempDir(), "profiles")
+	configPath := filepath.Join(configDirectory, "config.json")
+	body := fmt.Sprintf(`{"server":{"port":"9867","token":"tok","stateDir":%q},"browser":{"binary":%q,"extensionPaths":[%q]},"profiles":{"baseDir":%q}}`, stateDirectory, browserBinary, extensionPath, profilesBaseDirectory)
+	if err := os.WriteFile(configPath, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PINCHTAB_CONFIG", configPath)
+	cfg := Load()
+	if cfg.StateDir != stateDirectory {
+		t.Errorf("StateDir = %q, want %q", cfg.StateDir, stateDirectory)
+	}
+	if cfg.BrowserBinary != browserBinary {
+		t.Errorf("BrowserBinary = %q, want %q", cfg.BrowserBinary, browserBinary)
+	}
+	if len(cfg.ExtensionPaths) != 1 || cfg.ExtensionPaths[0] != extensionPath {
+		t.Errorf("ExtensionPaths = %v, want [%q]", cfg.ExtensionPaths, extensionPath)
+	}
+	if cfg.ProfilesBaseDir != profilesBaseDirectory {
+		t.Errorf("ProfilesBaseDir = %q, want %q", cfg.ProfilesBaseDir, profilesBaseDirectory)
+	}
+}
+
+func TestRelativeTargetPathsResolveFromConfigDirectory(t *testing.T) {
+	clearConfigEnvVars(t)
+	directory := t.TempDir()
+	path := filepath.Join(directory, "config.json")
+	body := `{"server":{"port":"9867","token":"tok","stateDir":"."},"browser":{"defaultTarget":"default","cloak":{"fontsDir":"global-fonts"},"targets":{"default":{"provider":"chrome","binary":"bin/chrome.exe","cloak":{"fontsDir":"target-fonts"}}}}}`
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PINCHTAB_CONFIG", path)
+	cfg := Load()
+	if cfg.Targets["default"].Binary != filepath.Join(directory, "bin", "chrome.exe") {
+		t.Errorf("target binary = %q", cfg.Targets["default"].Binary)
+	}
+	if cfg.Cloak.FontsDir != filepath.Join(directory, "global-fonts") {
+		t.Errorf("global fonts = %q", cfg.Cloak.FontsDir)
+	}
+	if cfg.Targets["default"].Cloak.FontsDir != filepath.Join(directory, "target-fonts") {
+		t.Errorf("target fonts = %q", cfg.Targets["default"].Cloak.FontsDir)
 	}
 }
