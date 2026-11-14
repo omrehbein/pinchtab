@@ -126,7 +126,7 @@ func actionFailureIsRetryable(err error, dispatchMayHaveLanded bool) bool {
 	if err == nil || dispatchMayHaveLanded {
 		return false
 	}
-	return !errors.Is(err, ErrTargetNotFound) && !errors.Is(err, bridge.ErrInvalidActionRequest)
+	return pointerFailureCode(err) == "" && !errors.Is(err, ErrTargetNotFound) && !errors.Is(err, bridge.ErrInvalidActionRequest)
 }
 
 const navigationChangedHint = "The action navigated the page, which the guard reports unless the request declares it: set waitNav true to wait for the navigation, or submit true when the click submits a form. From the CLI those are --wait-nav and --submit."
@@ -209,6 +209,12 @@ func (h *Handlers) runResolvedActionStep(
 		}
 	}
 	if err != nil {
+		if code := pointerFailureCode(err); code != "" {
+			return actionResult{
+				Index: index, Success: false, Error: errFallback(err),
+				Code: code, Details: pointerFailureDetails(),
+			}, nextCtx, nextTabID
+		}
 		return actionResult{
 			Index:   index,
 			Success: false,
@@ -707,6 +713,10 @@ func (h *Handlers) HandleAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(actionErr, ErrTargetNotFound) {
 			writeTargetNotFound(w, actionErr, recoveryResult)
+			return
+		}
+		if code := pointerFailureCode(actionErr); code != "" {
+			httpx.ErrorCode(w, http.StatusConflict, code, fmt.Sprintf("action %s: %v", req.Kind, actionErr), false, pointerFailureDetails())
 			return
 		}
 		dispatchMayHaveLanded := submitClick
