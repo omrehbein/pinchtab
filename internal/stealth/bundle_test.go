@@ -221,9 +221,13 @@ func TestCustomUserAgentPlatformComesFromTheStringNotTheHost(t *testing.T) {
 
 func TestBuildLaunchContractOwnsStealthLaunchFlags(t *testing.T) {
 	launch := BuildLaunchContract(&config.RuntimeConfig{BrowserVersion: "144.0.0.0"}, LevelLight)
+	if HasLaunchArgPrefix(launch.Args, "--enable-automation") {
+		t.Fatalf("did not expect --enable-automation because Chromium displays the automation infobar, got %v", launch.Args)
+	}
+	if HasLaunchArgPrefix(launch.Args, "--disable-blink-features=AutomationControlled") {
+		t.Fatalf("did not expect unsupported AutomationControlled flag, got %v", launch.Args)
+	}
 	for _, want := range []string{
-		"--enable-automation=false",
-		"--disable-blink-features=AutomationControlled",
 		"--enable-network-information-downlink-max",
 		"--lang=en-US",
 	} {
