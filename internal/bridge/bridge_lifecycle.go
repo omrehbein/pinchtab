@@ -267,6 +267,14 @@ func (b *Bridge) EnsureBrowser(cfg *config.RuntimeConfig) error {
 		}
 	}
 
+	if strings.TrimSpace(cfg.CDPAttachURL) == "" {
+		if err := prepareAutomationAppearance(cfg.ProfileDir); err != nil {
+			if !errors.Is(err, errAppearanceUnavailable) {
+				return fmt.Errorf("prepare automation appearance: %w", err)
+			}
+			slog.Warn("automation theme unavailable; starting browser without theme update", "err", err)
+		}
+	}
 	slog.Info("starting browser with confirmed profile", "headless", cfg.Headless, "profile", cfg.ProfileDir)
 	b.ensureStealthBundle()
 	allocCtx, allocCancel, browserCtx, browserCancel, launchMode, err := InitBrowser(cfg, b.StealthBundle)
