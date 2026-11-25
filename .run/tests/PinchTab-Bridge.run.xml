@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="TESTS - PinchTab - Bridge" type="GoTestRunConfiguration" factoryName="Go Test" folderName="TESTS">
+    <module name="pinchtab" />
+    <working_directory value="$PROJECT_DIR$" />
+    <kind value="DIRECTORY" />
+    <directory value="$PROJECT_DIR$/internal/bridge" />
+    <framework value="gotest" />
+    <method v="2" />
+  </configuration>
+</component>
