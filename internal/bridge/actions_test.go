@@ -11,6 +11,7 @@ import (
 
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/chromedp"
+	bridgecdpops "github.com/pinchtab/pinchtab/internal/bridge/cdpops"
 	"github.com/pinchtab/pinchtab/internal/config"
 	"github.com/pinchtab/pinchtab/internal/testbrowser"
 )
@@ -611,7 +612,7 @@ func TestClickByNodeIDWithJSFallback_FallsBackOnlyOnTimeout(t *testing.T) {
 
 	var fallbackCalled bool
 	clickByNodeIDAction = func(context.Context, int64) error {
-		return context.DeadlineExceeded
+		return errors.Join(bridgecdpops.ErrClickBeforePress, context.DeadlineExceeded)
 	}
 	jsClickByBackendNodeAction = func(context.Context, int64) error {
 		fallbackCalled = true
@@ -665,7 +666,7 @@ func TestClickByNodeIDWithJSFallback_SkipsFallbackOnCancelledCtx(t *testing.T) {
 	var fallbackCalled bool
 	clickByNodeIDAction = func(context.Context, int64) error {
 		cancel() // simulate dialog-detection cancelling the context
-		return context.DeadlineExceeded
+		return errors.Join(bridgecdpops.ErrClickBeforePress, context.DeadlineExceeded)
 	}
 	jsClickByBackendNodeAction = func(context.Context, int64) error {
 		fallbackCalled = true
@@ -673,7 +674,7 @@ func TestClickByNodeIDWithJSFallback_SkipsFallbackOnCancelledCtx(t *testing.T) {
 	}
 
 	err := clickByNodeIDWithJSFallback(ctx, 42)
-	if err == nil {
+	if !errors.Is(err, context.Canceled) {
 		t.Fatal("expected context cancelled error")
 	}
 	if fallbackCalled {

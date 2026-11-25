@@ -119,11 +119,19 @@ func PointerPointForNode(ctx context.Context, backendNodeID int64, requireTopMos
 		let occluded = false;
 		let topTag = '';
 		if (localX >= 0 && localY >= 0 && localX <= view.innerWidth && localY <= view.innerHeight) {
-			const top = doc.elementFromPoint(localX, localY);
-			if (top) {
-				topTag = String(top.tagName || '').toLowerCase();
-				const related = top === this || this.contains(top) || top.contains(this);
-				occluded = !related;
+			let top = doc.elementFromPoint(localX, localY);
+			while (top && top.shadowRoot) {
+				const inner = top.shadowRoot.elementFromPoint(localX, localY);
+				if (!inner || inner === top) break;
+				top = inner;
+			}
+			topTag = top ? String(top.tagName || '').toLowerCase() : '';
+			occluded = true;
+			for (let node = top; node; node = node.assignedSlot || parentAcrossShadow(node)) {
+				if (node === this) {
+					occluded = false;
+					break;
+				}
 			}
 		}
 		return {

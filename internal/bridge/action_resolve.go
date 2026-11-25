@@ -367,7 +367,7 @@ func BackendNodeWithinScope(ctx context.Context, scopeBackendNodeID, targetBacke
 		var raw json.RawMessage
 		if err := chromedp.FromContext(ctx).Target.Execute(ctx, "Runtime.callFunctionOn", map[string]any{
 			"functionDeclaration": `function(target) {
-				for (let cur = target; cur; cur = cur.parentNode || cur.host || null) {
+				for (let cur = target; cur; cur = cur.assignedSlot || cur.parentNode || cur.host || null) {
 					if (cur === this) return true;
 				}
 				return false;

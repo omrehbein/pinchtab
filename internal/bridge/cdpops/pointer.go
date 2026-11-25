@@ -339,16 +339,28 @@ func ClickByCoordinate(ctx context.Context, x, y float64, modifiers int) error {
 	return MouseUpByCoordinate(ctx, x, y, "left", modifiers)
 }
 
+// ErrClickBeforePress marks a validated target whose move timed out before any press.
+// Other timeouts have unknown delivery status and must not trigger another click.
+var ErrClickBeforePress = errors.New("click timed out before press")
+
+func prePressClickError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errors.Join(ErrClickBeforePress, err)
+	}
+	return err
+}
+
 func ClickByNodeID(ctx context.Context, nodeID int64) error {
 	x, y, err := PointerPointForNode(ctx, nodeID, true)
 	if err != nil {
 		return err
 	}
 
-	actions := []chromedp.Action{
-		mouseEventAction(map[string]any{"type": "mouseMoved", "x": x, "y": y}),
+	// Only a completed validation followed by a failed move is safe to recover.
+	if err := chromedp.Run(ctx, mouseEventAction(map[string]any{"type": "mouseMoved", "x": x, "y": y})); err != nil {
+		return prePressClickError(err)
 	}
-	actions = append(actions, mousePressReleaseActions(x, y, 1)...)
+	actions := mousePressReleaseActions(x, y, 1)
 	// CDP mouse events don't trigger default browser navigation on <a>
 	// elements. For links, fire a JS-level .click() so the browser
 	// follows the href.
