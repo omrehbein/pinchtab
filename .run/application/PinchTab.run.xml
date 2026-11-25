@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="APPLICATION - PinchTab" type="GoApplicationRunConfiguration" factoryName="Go Application" folderName="APPLICATION">
+    <module name="pinchtab" />
+    <working_directory value="$PROJECT_DIR$" />
+    <kind value="PACKAGE" />
+    <package value="github.com/pinchtab/pinchtab/cmd/pinchtab" />
+    <directory value="$PROJECT_DIR$" />
+    <method v="2" />
+  </configuration>
+</component>

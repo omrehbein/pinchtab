@@ -1,0 +1,47 @@
+name: pinchtab-serena
+
+services:
+  serena:
+    build:
+      context: https://github.com/oraios/serena.git#main
+      dockerfile: Dockerfile
+    entrypoint: ["serena"]
+    command:
+      - start-mcp-server
+      - --transport
+      - streamable-http
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9121"
+      - --language-backend
+      - JetBrains
+      - --project
+      - /mnt/c/utc/dev/pinchtab
+      - --enable-web-dashboard
+      - "false"
+    environment:
+      SERENA_DOCKER: "1"
+      SERENA_HOME: /serena-state
+    ports:
+      # Dedicated host port for the PinchTab Serena instance.
+      - "127.0.0.1:19124:9121"
+    volumes:
+      - .:/mnt/c/utc/dev/pinchtab
+      - serena-state:/serena-state
+    configs:
+      - source: serena-config
+        target: /serena-state/serena_config.yml
+
+configs:
+  serena-config:
+    content: |
+      projects: []
+      language_backend: JetBrains
+      jetbrains_plugin_server_address: host.docker.internal
+      gui_log_window: false
+      web_dashboard: false
+      web_dashboard_open_on_launch: false
+
+volumes:
+  serena-state:
