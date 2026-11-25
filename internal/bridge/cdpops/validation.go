@@ -19,6 +19,7 @@ var (
 )
 
 type pointerProbe struct {
+	Connected    bool    `json:"connected"`
 	X            float64 `json:"x"`
 	Y            float64 `json:"y"`
 	Width        float64 `json:"width"`
@@ -135,6 +136,7 @@ func PointerPointForNode(ctx context.Context, backendNodeID int64, requireTopMos
 			}
 		}
 		return {
+			connected: this.isConnected,
 			x,
 			y,
 			width: r.width,
@@ -173,6 +175,9 @@ func PointerPointForNode(ctx context.Context, backendNodeID int64, requireTopMos
 	probe, err := runProbe()
 	if err != nil {
 		return 0, 0, err
+	}
+	if !probe.Connected {
+		return 0, 0, errors.New("node is detached from document")
 	}
 	if probe.Visible && probe.TransparentAncestor && probe.Width > 0 && probe.Height > 0 {
 		if probe, err = revealTransparentAncestor(ctx, probe, runProbe); err != nil {
