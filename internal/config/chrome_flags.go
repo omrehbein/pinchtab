@@ -82,7 +82,7 @@ func validateChromeExtraFlag(flag string) error {
 		return chromeExtraFlagsError(flag, "must use a lowercase switch name")
 	}
 	for _, char := range name {
-		if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-') {
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '-' {
 			return chromeExtraFlagsError(flag, "contains an invalid switch name")
 		}
 	}
