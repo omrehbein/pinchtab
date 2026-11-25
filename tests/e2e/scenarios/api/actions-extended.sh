@@ -149,7 +149,7 @@ pt_get "/snapshot?filter=interactive"
 assert_ok "snapshot"
 require_ref "button" "Proceed" TARGET_REF && {
   pt_post /action "{\"kind\":\"click\",\"ref\":\"${TARGET_REF}\"}"
-  assert_http_status "500" "occluded ref click returns action failure"
+  assert_http_status "409" "occluded ref click returns action failure"
   assert_json_contains "$RESULT" '.error' 'element is occluded' "occluded error surfaced"
 
   pt_get "/box?ref=${TARGET_REF}"
