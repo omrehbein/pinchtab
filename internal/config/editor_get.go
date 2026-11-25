@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -66,6 +67,16 @@ func getBrowserField(b *BrowserConfig, field string) (string, error) {
 		return b.BrowserBinary, nil
 	case "extraFlags":
 		return b.BrowserExtraFlags, nil
+	case "args", "removeFlags":
+		values := b.BrowserArgs
+		if field == "removeFlags" {
+			values = b.BrowserRemoveFlags
+		}
+		if values == nil {
+			values = []string{}
+		}
+		data, err := json.Marshal(values)
+		return string(data), err
 	case "remoteDebuggingPort":
 		return formatIntPtr(b.BrowserDebugPort), nil
 	case "extensionPaths":

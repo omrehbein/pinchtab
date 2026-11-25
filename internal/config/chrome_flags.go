@@ -23,6 +23,35 @@ func validateBrowserExtraFlags(raw string) []error {
 	return errs
 }
 
+// ValidateBrowserArguments preserves each structured argument as one token.
+func ValidateBrowserArguments(raw string, args, removals []string) []error {
+	var errs []error
+	added := make(map[string]bool)
+	for _, arg := range append(strings.Fields(raw), args...) {
+		name, _ := splitChromeFlag(arg)
+		added[strings.ToLower(name)] = true
+	}
+	for _, arg := range args {
+		if err := validateChromeExtraFlag(arg); err != nil {
+			errs = append(errs, ValidationError{Field: "browser.args", Message: err.Error()})
+		}
+	}
+	for _, name := range removals {
+		key, _ := splitChromeFlag(name)
+		if key != name {
+			errs = append(errs, ValidationError{Field: "browser.removeFlags", Message: "use a switch name without a value"})
+			continue
+		}
+		if err := validateChromeExtraFlag(name); err != nil {
+			errs = append(errs, ValidationError{Field: "browser.removeFlags", Message: err.Error()})
+		}
+		if added[strings.ToLower(name)] {
+			errs = append(errs, ValidationError{Field: "browser.removeFlags", Message: fmt.Sprintf("switch %q is also added", name)})
+		}
+	}
+	return errs
+}
+
 func assessBrowserExtraFlags(raw string) ([]string, []error) {
 	fields := strings.Fields(raw)
 	allowed := make([]string, 0, len(fields))
@@ -49,6 +78,19 @@ func validateChromeExtraFlag(flag string) error {
 
 	name, value := splitChromeFlag(flag)
 	lowerName := strings.ToLower(name)
+	if name == "--" || name != lowerName {
+		return chromeExtraFlagsError(flag, "must use a lowercase switch name")
+	}
+	for _, char := range name {
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '-' {
+			return chromeExtraFlagsError(flag, "contains an invalid switch name")
+		}
+	}
+	for _, char := range flag {
+		if char < 32 || char == 127 {
+			return chromeExtraFlagsError(flag, "contains control characters")
+		}
+	}
 
 	if reservedField, ok := reservedChromeExtraFlagFields[lowerName]; ok {
 		return chromeExtraFlagsError(flag, fmt.Sprintf("is owned by PinchTab launch config; use %s instead", reservedField))
@@ -72,6 +114,41 @@ func splitChromeFlag(flag string) (name, value string) {
 	return name, value
 }
 
+// ApplyBrowserArguments composes switches by name without interpreting their values.
+func ApplyBrowserArguments(defaults []string, cfg *RuntimeConfig) ([]string, error) {
+	if errs := ValidateBrowserArguments(cfg.BrowserExtraFlags, cfg.BrowserArgs, cfg.BrowserRemoveFlags); len(errs) > 0 {
+		return nil, errs[0]
+	}
+	removed := make(map[string]bool)
+	for _, name := range cfg.BrowserRemoveFlags {
+		removed[name] = true
+	}
+	positions := make(map[string]int)
+	out := make([]string, 0, len(defaults)+len(cfg.BrowserArgs))
+	appendFlag := func(arg string) {
+		name, _ := splitChromeFlag(arg)
+		if index, ok := positions[name]; ok {
+			out[index] = arg
+		} else {
+			positions[name] = len(out)
+			out = append(out, arg)
+		}
+	}
+	for _, arg := range defaults {
+		name, _ := splitChromeFlag(arg)
+		if !removed[name] {
+			appendFlag(arg)
+		}
+	}
+	for _, arg := range AllowedBrowserExtraFlags(cfg.BrowserExtraFlags) {
+		appendFlag(arg)
+	}
+	for _, arg := range cfg.BrowserArgs {
+		appendFlag(arg)
+	}
+	return out, nil
+}
+
 func disablesSiteIsolation(value string) bool {
 	for _, feature := range strings.Split(strings.ToLower(value), ",") {
 		feature = strings.TrimSpace(feature)
@@ -91,20 +168,16 @@ func chromeExtraFlagsError(flag, message string) error {
 }
 
 var reservedChromeExtraFlagFields = map[string]string{
-	"--disable-automation":                      "the built-in stealth launch contract",
-	"--disable-blink-features":                  "the built-in stealth launch contract",
-	"--enable-automation":                       "the built-in stealth launch contract",
-	"--enable-network-information-downlink-max": "the built-in stealth launch contract",
-	"--headless":                                "instanceDefaults.mode",
-	"--load-extension":                          "browser.extensionPaths",
-	"--disable-extensions-except":               "browser.extensionPaths",
-	"--remote-debugging-address":                "browser.remoteDebuggingPort",
-	"--remote-debugging-pipe":                   "browser.remoteDebuggingPort",
-	"--remote-debugging-port":                   "browser.remoteDebuggingPort",
-	"--tz":                                      "instanceDefaults.timezone",
-	"--user-agent":                              "instanceDefaults.userAgent",
-	"--user-data-dir":                           "profiles.baseDir / profiles.defaultProfile",
-	"--window-size":                             "the built-in runtime window model",
+	"--headless":                  "instanceDefaults.mode",
+	"--load-extension":            "browser.extensionPaths",
+	"--disable-extensions-except": "browser.extensionPaths",
+	"--remote-debugging-address":  "browser.remoteDebuggingPort",
+	"--remote-debugging-pipe":     "browser.remoteDebuggingPort",
+	"--remote-debugging-port":     "browser.remoteDebuggingPort",
+	"--tz":                        "instanceDefaults.timezone",
+	"--user-agent":                "instanceDefaults.userAgent",
+	"--user-data-dir":             "profiles.baseDir / profiles.defaultProfile",
+	"--window-size":               "the built-in runtime window model",
 }
 
 var disallowedBrowserExtraFlags = map[string]string{

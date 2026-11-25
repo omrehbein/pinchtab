@@ -251,6 +251,8 @@ func CloneRuntimeConfig(in *RuntimeConfig) *RuntimeConfig {
 		return nil
 	}
 	out := *in
+	out.BrowserArgs = cloneStringSlice(in.BrowserArgs)
+	out.BrowserRemoveFlags = cloneStringSlice(in.BrowserRemoveFlags)
 	out.CookieSecure = cloneBoolPtr(in.CookieSecure)
 	out.AllowedDomains = cloneStringSlice(in.AllowedDomains)
 	out.DownloadAllowedDomains = cloneStringSlice(in.DownloadAllowedDomains)

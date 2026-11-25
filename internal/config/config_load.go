@@ -663,6 +663,8 @@ func applyBrowserConfig(cfg *RuntimeConfig, browser *BrowserConfig, browsersCfg 
 		cfg.BrowserExtraFlags = SanitizeBrowserExtraFlags(browser.BrowserExtraFlags)
 	}
 	applyCloakBrowserConfigToRuntime(cfg, browser.Cloak)
+	cfg.BrowserArgs = cloneStringSlice(browser.BrowserArgs)
+	cfg.BrowserRemoveFlags = cloneStringSlice(browser.BrowserRemoveFlags)
 	cfg.Proxy = BrowserProxyConfig{
 		Server:     browser.Proxy.Server,
 		BypassList: append([]string(nil), browser.Proxy.BypassList...),

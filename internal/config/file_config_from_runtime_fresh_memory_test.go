@@ -83,6 +83,8 @@ func emptyRuntimeReferences(path string, v reflect.Value) []string {
 func aliasProbeRuntimeConfig(t *testing.T) *RuntimeConfig {
 	t.Helper()
 	cfg := populatedRuntimeConfig(t)
+	cfg.BrowserArgs = []string{"--enable-automation"}
+	cfg.BrowserRemoveFlags = []string{"--disable-automation"}
 	cfg.CookieSecure = ptr(true)
 	cfg.AllowedDomains = []string{"allowed.example"}
 	cfg.Proxy.BypassList = []string{"bypass.example"}

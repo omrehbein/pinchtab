@@ -70,6 +70,8 @@ type RuntimeConfig struct {
 	BrowserBinary         string
 	BrowserDebugPort      int
 	BrowserExtraFlags     string
+	BrowserArgs           []string
+	BrowserRemoveFlags    []string
 	// CDPAttachURL: when set, the bridge skips launching its own Chrome and
 	// connects to an already-running Chrome whose browser-level CDP
 	// WebSocket URL is provided here (e.g.
@@ -338,13 +340,15 @@ type DashboardSessionFileConfig struct {
 
 type BrowserConfig struct {
 	// Removed: presence triggers a validation error. Keep for JSON backward compat.
-	Provider          string             `json:"provider,omitempty"`
-	BrowserVersion    string             `json:"version,omitempty"`
-	BrowserBinary     string             `json:"binary,omitempty"`
-	BrowserDebugPort  *int               `json:"remoteDebuggingPort,omitempty"`
-	BrowserExtraFlags string             `json:"extraFlags,omitempty"`
-	Cloak             CloakBrowserConfig `json:"cloak,omitempty"`
-	ExtensionPaths    []string           `json:"extensionPaths,omitempty"`
+	Provider           string             `json:"provider,omitempty"`
+	BrowserVersion     string             `json:"version,omitempty"`
+	BrowserBinary      string             `json:"binary,omitempty"`
+	BrowserDebugPort   *int               `json:"remoteDebuggingPort,omitempty"`
+	BrowserExtraFlags  string             `json:"extraFlags,omitempty"`
+	BrowserArgs        []string           `json:"args,omitempty"`
+	BrowserRemoveFlags []string           `json:"removeFlags,omitempty"`
+	Cloak              CloakBrowserConfig `json:"cloak,omitempty"`
+	ExtensionPaths     []string           `json:"extensionPaths,omitempty"`
 
 	Proxy BrowserProxyConfig `json:"proxy,omitempty"`
 

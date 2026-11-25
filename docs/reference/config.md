@@ -508,8 +508,34 @@ Rejected examples include:
 - `--disable-web-security`
 - `--ignore-certificate-errors`
 - `--user-agent=...`
-- `--enable-automation=...`
-- `--disable-blink-features=...`
+
+Use `browser.args` (an array of complete argument strings) to add or replace
+functional Chromium switches. Use `browser.removeFlags` (an array of names
+such as `--disable-automation`, without values) to omit inherited switches.
+Both default to an empty list, preserving the existing launch defaults.
+These fields apply to browser processes launched by PinchTab, not attached
+external browsers. Profile, CDP connection, and security restrictions still apply.
+
+Composition order is defaults, removals, legacy `browser.extraFlags`, then
+`browser.args`. The last added value for a switch name wins. A switch cannot
+be both removed and added; conflicting configuration is rejected. Each array
+item remains one argument even when its value contains spaces; no shell runs.
+
+```json
+{
+  "browser": {
+    "args": ["--enable-automation", "--force-color-profile=srgb"],
+    "removeFlags": ["--disable-automation"]
+  }
+}
+```
+
+`--enable-automation` is absent by default. Chromium tests its presence,
+so `--enable-automation=false` does not disable it. To omit it, leave it out
+of additions and remove an inherited occurrence by name when applicable.
+Headless and other launch switches can independently affect
+`navigator.webdriver`. Check the actual command line in `chrome://version`;
+an accepted switch is not proof of functional support in that Chromium version.
 
 Use the dedicated config fields instead:
 
