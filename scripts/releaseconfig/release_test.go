@@ -77,8 +77,12 @@ func TestAssetStagingAndShellSyntax(t *testing.T) {
 					t.Fatal(err)
 				}
 				if duplicate && osname == "linux" && arch == "amd64" {
-					os.MkdirAll(filepath.Join(root, "dist", "duplicate"), 0755)
-					os.WriteFile(filepath.Join(root, "dist", "duplicate", name), data, 0755)
+					if err := os.MkdirAll(filepath.Join(root, "dist", "duplicate"), 0755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(filepath.Join(root, "dist", "duplicate", name), data, 0755); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 		}
