@@ -229,7 +229,13 @@ func setupAllocator(cfg *config.RuntimeConfig, binary string, bundle *stealth.Bu
 		opts = append(opts, chromedp.Flag("tz", cfg.Timezone))
 	}
 
-	extraFlags := config.AllowedBrowserExtraFlags(cfg.BrowserExtraFlags)
+	extraFlags, argErr := config.ApplyBrowserArguments(nil, cfg)
+	if argErr != nil {
+		return nil, nil, nil, 0, argErr
+	}
+	for _, name := range cfg.BrowserRemoveFlags {
+		opts = append(opts, chromedp.Flag(strings.TrimPrefix(name, "--"), false))
+	}
 	if cfg.DisableInProcessGPU {
 		// Kill switch from the crash-recovery path: strip a user-supplied
 		// --in-process-gpu so a crash loop can't repeat after retry.

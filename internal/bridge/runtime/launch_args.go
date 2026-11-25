@@ -102,6 +102,13 @@ func buildBrowserArgsWithBundle(cfg *config.RuntimeConfig, binary string, bundle
 	}
 	args = append(args, proxyFlags...)
 	args = append(args, geoAlignment.flags...)
+	args, err = config.ApplyBrowserArguments(args, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	if cfg.DisableInProcessGPU {
+		args = stripInProcessGPUFlag(args)
+	}
 
 	env := append([]string(nil), plan.env...)
 	return args, env, nil

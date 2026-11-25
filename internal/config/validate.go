@@ -252,6 +252,7 @@ func ValidateFileConfig(fc *FileConfig) []error {
 	if fc.Browser.BrowserExtraFlags != "" {
 		errs = append(errs, validateBrowserExtraFlags(fc.Browser.BrowserExtraFlags)...)
 	}
+	errs = append(errs, ValidateBrowserArguments(fc.Browser.BrowserExtraFlags, fc.Browser.BrowserArgs, fc.Browser.BrowserRemoveFlags)...)
 
 	errs = append(errs, validateIDPIConfig(fc.Security.EffectiveIDPI(), effectiveSecurityAllowedDomains(fc.Security))...)
 	errs = append(errs, validateAllowedDomainList("security.downloadAllowedDomains", fc.Security.DownloadAllowedDomains)...)

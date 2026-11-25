@@ -2,18 +2,23 @@ package runtime
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/chromedp/chromedp"
 
 	"github.com/pinchtab/pinchtab/internal/browsers"
 	_ "github.com/pinchtab/pinchtab/internal/browsers/chrome"
 	_ "github.com/pinchtab/pinchtab/internal/browsers/cloak"
 	"github.com/pinchtab/pinchtab/internal/config"
 	"github.com/pinchtab/pinchtab/internal/stealth"
+	"github.com/pinchtab/pinchtab/internal/testbrowser"
 )
 
 func TestBrowserNeedsNoSandbox(t *testing.T) {
@@ -168,7 +173,6 @@ func TestBuildBrowserArgs_DefaultChromeProviderKeepsChromeLaunchContract(t *test
 		"--remote-debugging-port=9222",
 		"--disable-background-networking",
 		"--disable-automation",
-		"--enable-automation=false",
 		"--disable-blink-features=AutomationControlled",
 		"--enable-network-information-downlink-max",
 		"--lang=en-US",
@@ -193,6 +197,75 @@ func TestBuildBrowserArgs_DefaultChromeProviderKeepsChromeLaunchContract(t *test
 		if stealth.HasLaunchArgPrefix(args, blockedPrefix) {
 			t.Fatalf("BuildBrowserArgs() included Cloak flag prefix %q in Chrome provider mode: %v", blockedPrefix, args)
 		}
+	}
+}
+
+// Real launches catch divergence between the command builder and allocator paths.
+func TestChromeParametersReachTheRealBrowser(t *testing.T) {
+	path := testbrowser.Path(t)
+	for _, tc := range []struct {
+		name         string
+		args, remove []string
+		want, absent []string
+	}{
+		{name: "defaults", want: []string{"--disable-automation", "--disable-blink-features=AutomationControlled", "--enable-network-information-downlink-max", "--force-color-profile=srgb"}, absent: []string{"--enable-automation"}},
+		{name: "present", args: []string{"--enable-automation"}, want: []string{"--enable-automation"}},
+		{name: "literal-false", args: []string{"--enable-automation=false"}, want: []string{"--enable-automation=false"}},
+		{name: "override", args: []string{"--force-color-profile=display-p3-d65", "--force-color-profile=srgb", "--js-flags=--expose-gc --stack-trace-limit=20", "--disable-automation=false"}, want: []string{"--force-color-profile=srgb", "--js-flags=--expose-gc --stack-trace-limit=20", "--disable-automation=false"}, absent: []string{"--force-color-profile=display-p3-d65"}},
+		{name: "remove", remove: []string{"--disable-automation", "--disable-blink-features", "--enable-network-information-downlink-max", "--force-color-profile"}, absent: []string{"--disable-automation", "--disable-blink-features", "--enable-network-information-downlink-max", "--force-color-profile"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.RuntimeConfig{DefaultBrowser: config.BrowserChrome, BrowserBinary: path, Headless: true, ProfileDir: testbrowser.ProfileDir(t), StateDir: t.TempDir(), BrowserArgs: tc.args, BrowserRemoveFlags: tc.remove, InstancePortStart: 19868, InstancePortEnd: 19898}
+			if tc.name == "override" {
+				cfg.BrowserExtraFlags = "--force-color-profile=display-p3-d65"
+			}
+			_, cancelAlloc, ctx, cancelBrowser, _, err := InitBrowser(cfg, nil, Hooks{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancelAlloc()
+			defer cancelBrowser()
+			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			var command, version string
+			if err := chromedp.Run(ctx, chromedp.Navigate("chrome://version"), chromedp.Text("#command_line", &command), chromedp.Text("#version", &version)); err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range tc.want {
+				quoted := want
+				if parts := strings.SplitN(want, "=", 2); len(parts) == 2 {
+					quoted = parts[0] + "=" + fmt.Sprintf("%q", parts[1])
+				}
+				if !strings.Contains(command, want) && !strings.Contains(command, quoted) {
+					t.Fatalf("missing %q in %s", want, command)
+				}
+			}
+			for _, absent := range tc.absent {
+				if strings.Contains(command, absent) {
+					t.Fatalf("unexpected %q in %s", absent, command)
+				}
+			}
+			page := "data:text/html;base64," + base64.StdEncoding.EncodeToString([]byte(`<button id="probe" onclick="this.textContent='clicked'">ready</button>`))
+			var before, after string
+			var webdriver bool
+			if err := chromedp.Run(ctx, chromedp.Navigate(page), chromedp.Text("#probe", &before), chromedp.Click("#probe"), chromedp.Text("#probe", &after), chromedp.Evaluate("navigator.webdriver", &webdriver)); err != nil {
+				t.Fatal(err)
+			}
+			if before != "ready" || after != "clicked" {
+				t.Fatalf("interaction: %q -> %q", before, after)
+			}
+			if tc.name == "override" {
+				var gc string
+				var stackLimit int
+				if err := chromedp.Run(ctx, chromedp.Evaluate("typeof gc", &gc), chromedp.Evaluate("Error.stackTraceLimit", &stackLimit)); err != nil {
+					t.Fatal(err)
+				}
+				if gc != "function" || stackLimit != 20 {
+					t.Fatalf("V8 options not applied: gc=%s stackTraceLimit=%d", gc, stackLimit)
+				}
+			}
+			t.Logf("Chromium=%s navigator.webdriver=%v command=%s", version, webdriver, command)
+		})
 	}
 }
 

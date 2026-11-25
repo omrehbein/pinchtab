@@ -28,7 +28,6 @@ func TestBuildBrowserArgsIncludesStealthLaunchFlags(t *testing.T) {
 	args := buildBrowserArgs(&config.RuntimeConfig{}, 9222)
 
 	for _, want := range []string{
-		"--enable-automation=false",
 		"--enable-network-information-downlink-max",
 		"--disable-blink-features=AutomationControlled",
 		"--lang=en-US",

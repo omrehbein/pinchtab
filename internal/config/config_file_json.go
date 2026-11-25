@@ -31,13 +31,15 @@ type serverConfigJSON struct {
 }
 
 type browserConfigJSON struct {
-	Provider          string                  `json:"provider,omitempty"`
-	BrowserVersion    string                  `json:"version"`
-	BrowserBinary     string                  `json:"binary"`
-	BrowserDebugPort  *int                    `json:"remoteDebuggingPort,omitempty"`
-	BrowserExtraFlags string                  `json:"extraFlags"`
-	Cloak             *cloakBrowserConfigJSON `json:"cloak,omitempty"`
-	ExtensionPaths    []string                `json:"extensionPaths"`
+	Provider           string                  `json:"provider,omitempty"`
+	BrowserVersion     string                  `json:"version"`
+	BrowserBinary      string                  `json:"binary"`
+	BrowserDebugPort   *int                    `json:"remoteDebuggingPort,omitempty"`
+	BrowserExtraFlags  string                  `json:"extraFlags"`
+	BrowserArgs        []string                `json:"args,omitempty"`
+	BrowserRemoveFlags []string                `json:"removeFlags,omitempty"`
+	Cloak              *cloakBrowserConfigJSON `json:"cloak,omitempty"`
+	ExtensionPaths     []string                `json:"extensionPaths"`
 	// Pointer so omitempty drops the field for legacy configs (byte-identical round-trip).
 	Proxy         *BrowserProxyConfig  `json:"proxy,omitempty"`
 	DefaultTarget string               `json:"defaultTarget,omitempty"`

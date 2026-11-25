@@ -248,6 +248,14 @@
         "extraFlags": {
           "type": "string"
         },
+        "args": {
+          "$ref": "#/definitions/stringArray",
+          "description": "Additional Chromium switches, one complete argument per item; overrides defaults and extraFlags by switch name."
+        },
+        "removeFlags": {
+          "$ref": "#/definitions/stringArray",
+          "description": "Names of inherited Chromium switches to omit; cannot conflict with additions or override protected fields."
+        },
         "cloak": {
           "$ref": "#/definitions/cloakBrowser"
         },

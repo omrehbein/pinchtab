@@ -342,6 +342,9 @@ func probeValueFor(t *testing.T, path string, typ reflect.Type) string {
 	case reflect.Float64:
 		return "7"
 	case reflect.Slice:
+		if path == "browser.args" || path == "browser.removeFlags" {
+			return `["--enable-automation"]`
+		}
 		return "example.com"
 	case reflect.String:
 		return probeStringFor(path)

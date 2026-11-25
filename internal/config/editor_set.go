@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -96,6 +97,16 @@ func setBrowserField(b *BrowserConfig, field, value string) error {
 		b.BrowserBinary = value
 	case "extraFlags":
 		b.BrowserExtraFlags = value
+	case "args", "removeFlags":
+		var values []string
+		if err := json.Unmarshal([]byte(value), &values); err != nil {
+			return fmt.Errorf("browser.%s must be a JSON array of strings: %w", field, err)
+		}
+		if field == "args" {
+			b.BrowserArgs = values
+		} else {
+			b.BrowserRemoveFlags = values
+		}
 	case "remoteDebuggingPort":
 		n, err := strconv.Atoi(value)
 		if err != nil {

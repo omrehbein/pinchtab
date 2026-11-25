@@ -184,17 +184,19 @@ func (fc FileConfig) MarshalJSON() ([]byte, error) {
 			CookieSecure:              fc.Server.CookieSecure,
 		},
 		Browser: browserConfigJSON{
-			Provider:          fc.Browser.Provider, // removed; kept for round-trip fidelity, omitted when empty via omitempty
-			BrowserVersion:    fc.Browser.BrowserVersion,
-			BrowserBinary:     fc.Browser.BrowserBinary,
-			BrowserDebugPort:  fc.Browser.BrowserDebugPort,
-			BrowserExtraFlags: fc.Browser.BrowserExtraFlags,
-			Cloak:             cloakBrowserConfigJSONFromFile(fc.Browser.Cloak),
-			ExtensionPaths:    copyStringSlice(fc.Browser.ExtensionPaths),
-			Proxy:             browserProxyJSONFromFile(fc.Browser.Proxy),
-			DefaultTarget:     fc.Browser.DefaultTarget,
-			FallbackOrder:     fc.Browser.FallbackOrder,
-			Targets:           fc.Browser.Targets,
+			Provider:           fc.Browser.Provider, // removed; kept for round-trip fidelity, omitted when empty via omitempty
+			BrowserVersion:     fc.Browser.BrowserVersion,
+			BrowserBinary:      fc.Browser.BrowserBinary,
+			BrowserDebugPort:   fc.Browser.BrowserDebugPort,
+			BrowserExtraFlags:  fc.Browser.BrowserExtraFlags,
+			BrowserArgs:        copyStringSlice(fc.Browser.BrowserArgs),
+			BrowserRemoveFlags: copyStringSlice(fc.Browser.BrowserRemoveFlags),
+			Cloak:              cloakBrowserConfigJSONFromFile(fc.Browser.Cloak),
+			ExtensionPaths:     copyStringSlice(fc.Browser.ExtensionPaths),
+			Proxy:              browserProxyJSONFromFile(fc.Browser.Proxy),
+			DefaultTarget:      fc.Browser.DefaultTarget,
+			FallbackOrder:      fc.Browser.FallbackOrder,
+			Targets:            fc.Browser.Targets,
 		},
 		InstanceDefaults: instanceDefaultsConfigJSON{
 			Mode:                   fc.InstanceDefaults.Mode,
@@ -423,16 +425,18 @@ func serverConfigFromRuntime(cfg *RuntimeConfig) ServerConfig {
 
 func browserConfigFromRuntime(cfg *RuntimeConfig) BrowserConfig {
 	return BrowserConfig{
-		BrowserVersion:    cfg.BrowserVersion,
-		BrowserBinary:     cfg.BrowserBinary,
-		BrowserDebugPort:  intPtrIfPositive(cfg.BrowserDebugPort),
-		BrowserExtraFlags: cfg.BrowserExtraFlags,
-		Cloak:             cloakBrowserConfigFromRuntime(cfg),
-		ExtensionPaths:    cloneStringSlice(cfg.ExtensionPaths),
-		Proxy:             cloneBrowserProxyConfig(cfg.Proxy),
-		DefaultTarget:     cfg.DefaultTarget,
-		FallbackOrder:     cloneStringSlice(cfg.FallbackOrder),
-		Targets:           cloneBrowserTargetsConfig(cfg.Targets),
+		BrowserVersion:     cfg.BrowserVersion,
+		BrowserBinary:      cfg.BrowserBinary,
+		BrowserDebugPort:   intPtrIfPositive(cfg.BrowserDebugPort),
+		BrowserExtraFlags:  cfg.BrowserExtraFlags,
+		BrowserArgs:        cloneStringSlice(cfg.BrowserArgs),
+		BrowserRemoveFlags: cloneStringSlice(cfg.BrowserRemoveFlags),
+		Cloak:              cloakBrowserConfigFromRuntime(cfg),
+		ExtensionPaths:     cloneStringSlice(cfg.ExtensionPaths),
+		Proxy:              cloneBrowserProxyConfig(cfg.Proxy),
+		DefaultTarget:      cfg.DefaultTarget,
+		FallbackOrder:      cloneStringSlice(cfg.FallbackOrder),
+		Targets:            cloneBrowserTargetsConfig(cfg.Targets),
 	}
 }
 
