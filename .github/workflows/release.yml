@@ -18,7 +18,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  fork-release:
+    if: github.repository == 'omrehbein/pinchtab'
+    uses: ./.github/workflows/reusable-fork-release.yml
+    with:
+      version: ${{ inputs.version }}
+
   validate:
+    if: github.repository == 'pinchtab/pinchtab'
     uses: ./.github/workflows/reusable-validate-release.yml
     with:
       version: ${{ inputs.version }}

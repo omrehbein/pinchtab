@@ -1,0 +1,137 @@
+name: Reusable / Fork Release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.repository == 'omrehbein/pinchtab'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Validate version and main target
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          VERSION=$(node scripts/release-version.mjs "$REQUESTED_VERSION")
+          node --test scripts/release-version.test.mjs
+          git fetch origin main --tags
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          if git rev-parse --verify "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "Release tag already exists" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  go-checks:
+    needs: validate
+    uses: ./.github/workflows/reusable-go.yml
+    with:
+      ref: ${{ github.sha }}
+      windows_tests: true
+
+  dashboard-checks:
+    needs: validate
+    uses: ./.github/workflows/reusable-dashboard.yml
+
+  docs-checks:
+    needs: validate
+    uses: ./.github/workflows/reusable-docs.yml
+    with:
+      ref: ${{ github.sha }}
+
+  npm-checks:
+    needs: validate
+    uses: ./.github/workflows/reusable-npm.yml
+    with:
+      ref: ${{ github.sha }}
+      version: ${{ needs.validate.outputs.version }}
+
+  plugin-checks:
+    needs: validate
+    uses: ./.github/workflows/reusable-plugin.yml
+
+  release:
+    needs: [validate, go-checks, dashboard-checks, docs-checks, npm-checks, plugin-checks]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Test release configuration
+        run: go test ./scripts/releaseconfig
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - name: Set fork destination
+        run: echo "RELEASE_REPOSITORY_NAME=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
+      - name: Build six release binaries before tagging
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: v2.14.3
+          args: release --snapshot --clean --skip=publish --config .goreleaser.fork.yml
+      - name: Verify assets and version
+        run: |
+          set -euo pipefail
+          mkdir release-assets
+          for os in linux darwin windows; do
+            for arch in amd64 arm64; do
+              suffix=""
+              if [ "$os" = windows ]; then suffix=.exe; fi
+              name="pinchtab-$os-$arch$suffix"
+              mapfile -t matches < <(find dist -type f -name "$name")
+              test "${#matches[@]}" = 1
+              test -s "${matches[0]}"
+              cp "${matches[0]}" "release-assets/$name"
+            done
+          done
+          test "$(release-assets/pinchtab-linux-amd64 --version)" = "pinchtab $RELEASE_VERSION"
+          cd release-assets
+          sha256sum pinchtab-* > checksums.txt
+          sha256sum --check checksums.txt
+      - name: Create immutable release tag and publish to this fork
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = omrehbein/pinchtab
+          node scripts/release-version.mjs "$RELEASE_VERSION"
+          git fetch origin main --tags
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          TAG="v$RELEASE_VERSION"
+          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Release tag already exists; refusing overwrite" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" "$GITHUB_SHA" -m "Release $TAG"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --generate-notes release-assets/pinchtab-* release-assets/checksums.txt
