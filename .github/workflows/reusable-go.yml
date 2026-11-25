@@ -31,7 +31,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Test
-        run: go test -count=1 ./...
+        # Browser-backed packages launch independent Chromium instances. Match
+        # the Linux suite scheduling so runner contention cannot starve CDP.
+        run: go test -p 1 -count=1 ./...
 
   build:
     name: Build & Vet
