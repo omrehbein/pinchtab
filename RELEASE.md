@@ -1,5 +1,32 @@
 # Release Process
 
+## Fork releases (omrehbein/pinchtab)
+
+Use Actions > Release on main; a tag push alone does not start this workflow.
+
+1. Update root VERSION to an unused stable MAJOR.MINOR.PATCH (initial candidate
+   0.15.3); commit and merge it into main through normal review before releasing.
+2. Run Release on main with the same version. Version validation, Go (including
+   Windows), dashboard, docs, npm and plugin checks must pass before publication.
+3. The workflow builds six complete binaries with the dashboard and verifies
+   their SHA-256 checksums and the Linux binary version before creating a tag.
+4. It confirms main has not moved, creates the annotated vMAJOR.MINOR.PATCH tag
+   on the validated commit, then attaches the binaries and checksums.txt to the
+   GitHub Release in this fork. Existing tags are never rewritten.
+
+Platforms: Linux, macOS and Windows, each for amd64 and arm64. VERSION is the
+persisted release source and is injected into binaries. Development builds keep
+the upstream dev default. Enable Actions in the fork; GITHUB_TOKEN requires
+contents: write for publication. Repository rules may require additional approval.
+No npm, Docker, Homebrew or ClawHub publishing occurs; no external registry
+secrets are required. npm/plugin checks validate packages without publishing.
+
+The fork uses .goreleaser.fork.yml; the original configuration and publication
+backend remain upstream-only. If publication fails after pushing a tag, inspect
+the run before recovery. Do not delete the tag or reuse its version automatically.
+
+The remaining sections describe the upstream multi-registry release process.
+
 **⚠️ CRITICAL:** The npm package depends on Go binaries being in the GitHub release. The release pipeline will fail hard if goreleaser doesn't upload binaries — npm users won't get a working binary.
 
 Pinchtab uses an automated CI/CD pipeline triggered by Git tags. When you push a tag like `v0.7.0`, GitHub Actions:
