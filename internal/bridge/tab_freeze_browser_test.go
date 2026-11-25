@@ -62,6 +62,10 @@ func TestFreezeIdleFreezesARealTabAndAnActionUnfreezesIt(t *testing.T) {
 		t.Fatal("tab was not frozen after closeDelay")
 	}
 
+	// Match the request-lifetime guard used by the real action handlers.
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	defer cancelRequest()
+	tm.HoldAwakeUntil(requestCtx, tabID)
 	ctx, _, err := tm.TabContext(tabID)
 	if err != nil {
 		t.Fatalf("tab lookup: %v", err)
@@ -71,6 +75,14 @@ func TestFreezeIdleFreezesARealTabAndAnActionUnfreezesIt(t *testing.T) {
 	var title string
 	var froze, resumed bool
 	if err := chromedp.Run(actCtx,
+		// An action can outlast the idle delay on a loaded Windows runner.
+		chromedp.Sleep(150*time.Millisecond),
+		chromedp.ActionFunc(func(context.Context) error {
+			if tm.TabFrozen(tabID) {
+				t.Fatal("tab refroze while the action was in progress")
+			}
+			return nil
+		}),
 		chromedp.Click("#b", chromedp.ByQuery),
 		chromedp.Title(&title),
 		chromedp.Evaluate(`window.__froze`, &froze),

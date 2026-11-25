@@ -35,6 +35,7 @@ func TestEnvOr(t *testing.T) {
 func TestDefaultConfigHint(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("APPDATA", home)
 	defaultPath := DefaultConfigPath()
 	if err := os.MkdirAll(filepath.Dir(defaultPath), 0o755); err != nil {
 		t.Fatal(err)

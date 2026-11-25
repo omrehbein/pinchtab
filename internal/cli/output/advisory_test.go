@@ -106,13 +106,12 @@ func TestTheFirstRunPublishesTheSwitchBeforeTheAdvisory(t *testing.T) {
 // caller hears the advice again, which is the behaviour this replaces, and the
 // command itself is untouched.
 func TestAnUnwritableStateDirectoryFallsBackToPrinting(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root writes through the permission this test relies on")
-	}
 	isolatedInstall(t)
 
 	readOnly := filepath.Join(t.TempDir(), "state")
-	if err := os.MkdirAll(readOnly, 0o500); err != nil {
+	// A file blocks directory creation on every platform, including Windows
+	// and privileged Unix runners where mode bits cannot simulate this failure.
+	if err := os.WriteFile(readOnly, []byte("not a directory"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("XDG_STATE_HOME", readOnly)

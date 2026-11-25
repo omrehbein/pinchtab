@@ -222,13 +222,7 @@ func TestVocabStoreIsOneBoundedFilePerServer(t *testing.T) {
 		t.Fatalf("expected exactly one vocab store file per server, found %d: %v", len(files), files)
 	}
 
-	info, err := os.Stat(files[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("vocab store written %o, want 0600 (it holds a capability token on a possibly shared path)", perm)
-	}
+	assertVocabStorePermissions(t, files[0])
 
 	data, err := os.ReadFile(files[0])
 	if err != nil {
