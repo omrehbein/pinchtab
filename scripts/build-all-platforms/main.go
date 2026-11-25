@@ -20,6 +20,7 @@ func main() {
 			if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
 				fail(err)
 			}
+			// #nosec G204 -- Fixed executable and build flags; output is derived only from the literal OS/architecture lists above. No shell or user input is used.
 			cmd := exec.Command("go", "build", "-trimpath", "-o", output, "./cmd/pinchtab")
 			for _, env := range os.Environ() {
 				key, _, _ := strings.Cut(env, "=")
