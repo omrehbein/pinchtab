@@ -11,6 +11,7 @@ import (
 	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
+	bridgecdpops "github.com/pinchtab/pinchtab/internal/bridge/cdpops"
 )
 
 var scrollByCoordinateAction = ScrollByCoordinate
@@ -46,7 +47,7 @@ func clickByNodeIDWithJSFallback(ctx context.Context, nodeID int64) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.DeadlineExceeded) && errors.Is(err, bridgecdpops.ErrClickBeforePress) {
 		// Re-check: the parent context may have been cancelled (e.g. by the
 		// dialog-detection polling loop) while the trusted click was running.
 		if ctx.Err() != nil {

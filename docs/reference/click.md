@@ -12,6 +12,12 @@ pinchtab click e5
 OK
 ```
 
+## Delivery and observed effect
+
+A response containing `clicked: true` means the click routine completed without an error. It does not, by itself, prove that the target activation handler ran or that the intended application state changed. For example, a disabled button may complete the routine without activating. Check the resulting page state separately.
+
+The normal node-targeted path attempts pointer delivery first. JavaScript recovery is allowed only after validation completes and movement times out before any press. Validation failures and timeouts with uncertain press/release delivery return an error without a second activation. It does not promise `event.isTrusted === true` for every click. Explicit `dom` and `dispatch` modes also use synthetic delivery. Event origin, technical completion, and the observed application effect are separate facts; `isTrusted` is not a functional-success signal.
+
 ## When the click navigates
 
 A click that moves the page **succeeds**. There is nothing to declare in advance and
