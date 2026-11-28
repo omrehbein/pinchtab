@@ -26,7 +26,9 @@ func fragmentBrowser(t *testing.T, html string) (context.Context, int64) {
 	t.Cleanup(func() { cancelTimeout(); cancelBrowser(); cancelAlloc() })
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, html)
+		if _, err := fmt.Fprint(w, html); err != nil {
+			t.Errorf("serve fragment fixture: %v", err)
+		}
 	}))
 	t.Cleanup(server.Close)
 	var backendID int64

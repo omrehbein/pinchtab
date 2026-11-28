@@ -392,45 +392,6 @@ func ClickByNodeID(ctx context.Context, nodeID int64) error {
 	return finalPointerError(chromedp.Run(ctx, mousePressReleaseActions(x, y, 1)...))
 }
 
-func jsClickIfLink(ctx context.Context, nodeID int64) error {
-	var resolved json.RawMessage
-	if err := chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.resolveNode", map[string]any{
-		"backendNodeId": nodeID,
-	}, &resolved); err != nil {
-		return nil
-	}
-	var obj struct {
-		Object struct {
-			ObjectID string `json:"objectId"`
-		} `json:"object"`
-	}
-	if json.Unmarshal(resolved, &obj) != nil || obj.Object.ObjectID == "" {
-		return nil
-	}
-
-	const js = `function() {
-		var el = this;
-		while (el && el.nodeType === 1) {
-			if (el.tagName === 'A' && el.hasAttribute('href')) {
-				el.click();
-				return;
-			}
-			el = el.parentElement;
-		}
-	}`
-	err := chromedp.FromContext(ctx).Target.Execute(ctx,
-		"Runtime.callFunctionOn", map[string]any{
-			"functionDeclaration": js,
-			"objectId":            obj.Object.ObjectID,
-		}, nil)
-	if linkContextGone(err) {
-		// The trusted press already followed the link and the old document's
-		// context is gone: the click landed, so there is nothing left to do.
-		return nil
-	}
-	return err
-}
-
 func linkContextGone(err error) bool {
 	var protocolErr *cdproto.Error
 	return errors.As(err, &protocolErr) && protocolErr.Code == -32000 &&
