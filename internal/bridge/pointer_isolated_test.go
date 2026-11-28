@@ -116,6 +116,43 @@ func TestPointerPointWalksNestedFrameOffsets(t *testing.T) {
 	}
 }
 
+func TestPointerPointRefusesUnverifiedFrameMapping(t *testing.T) {
+	for _, style := range []string{"border:5px solid black", "transform:scale(1.2)", "padding:20px", "scale:1.2", "rotate:10deg"} {
+		t.Run(style, func(t *testing.T) {
+			ctx := newPointerFixture(t, pointerFrameHTML)
+			id := deepFrameNode(t, ctx)
+			if err := chromedp.Run(ctx, chromedp.Evaluate(`document.getElementById("outer").style.cssText+=";`+style+`"`, nil)); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := cdpops.PointerPointForNode(ctx, id, true); err == nil {
+				t.Fatal("unverified frame mapping accepted")
+			}
+		})
+	}
+}
+
+func TestPointerPointRefusesTransformedShadowFrameAncestor(t *testing.T) {
+	ctx := newPointerFixture(t, pointerFrameHTML)
+	if err := chromedp.Run(ctx, chromedp.Evaluate(`(()=>{const frame=document.getElementById("outer");const host=document.createElement("div");host.style="transform:scale(1.2)";document.body.append(host);host.attachShadow({mode:"open"}).append(frame)})()`, nil)); err != nil {
+		t.Fatal(err)
+	}
+	id := deepFrameNode(t, ctx)
+	if _, _, err := cdpops.PointerPointForNode(ctx, id, true); err == nil {
+		t.Fatal("transformed shadow host mapping accepted")
+	}
+}
+
+func TestPointerPointRefusesParentFrameOverlay(t *testing.T) {
+	ctx := newPointerFixture(t, pointerFrameHTML)
+	id := deepFrameNode(t, ctx)
+	if err := chromedp.Run(ctx, chromedp.Evaluate(`(()=>{const c=document.createElement("div");c.style="position:fixed;inset:0;background:black;z-index:999";document.body.append(c)})()`, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := cdpops.PointerPointForNode(ctx, id, true); !errors.Is(err, cdpops.ErrElementOccluded) {
+		t.Fatalf("parent overlay: %v", err)
+	}
+}
+
 func deepFrameNode(t *testing.T, ctx context.Context) int64 {
 	t.Helper()
 	var walk func(tree RawFrameTree) []string

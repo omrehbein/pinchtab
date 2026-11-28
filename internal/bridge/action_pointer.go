@@ -24,6 +24,7 @@ var hoverElementAction = HoverElement
 var hoverCoordinateAction = Hover
 var clickByNodeIDAction = ClickByNodeID
 var jsClickByBackendNodeAction = JSClickByBackendNode
+
 var dispatchClickByBackendNodeAction = JSDispatchClickByBackendNode
 var clickFloatingFlyoutItemAction = clickFloatingFlyoutItem
 var doubleClickByNodeIDAction = DoubleClickByNodeID
@@ -58,10 +59,27 @@ func clickByNodeIDWithJSFallback(ctx context.Context, nodeID int64) error {
 		// dialog).
 		jsCtx, jsCancel := context.WithTimeout(ctx, trustedNodeClickTimeout)
 		defer jsCancel()
-		return jsClickByBackendNodeAction(jsCtx, nodeID)
+		var phase interface {
+			ValidateClickRecovery(context.Context, int64) error
+		}
+		if !errors.As(err, &phase) {
+			return err
+		}
+		if checkErr := phase.ValidateClickRecovery(jsCtx, nodeID); checkErr != nil {
+			return clickRecoveryFinalError{checkErr}
+		}
+		if dispatchErr := jsClickByBackendNodeAction(jsCtx, nodeID); dispatchErr != nil {
+			return clickRecoveryFinalError{dispatchErr}
+		}
+		return nil
 	}
 	return err
 }
+
+type clickRecoveryFinalError struct{ error }
+
+func (clickRecoveryFinalError) PointerRetryForbidden() bool { return true }
+func (e clickRecoveryFinalError) Unwrap() error             { return e.error }
 
 func clickByNodeIDWithMode(ctx context.Context, nodeID int64, mode string) error {
 	switch strings.ToLower(strings.TrimSpace(mode)) {

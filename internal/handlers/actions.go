@@ -153,7 +153,7 @@ func availableOptionsHint(options []bridgecdpops.SelectOption) string {
 // failure never is, and a dispatch that may already have landed must not be repeated
 // whatever the error was.
 func actionFailureIsRetryable(err error, dispatchMayHaveLanded bool) bool {
-	if err == nil || dispatchMayHaveLanded {
+	if err == nil || dispatchMayHaveLanded || pointerRetryForbidden(err) {
 		return false
 	}
 	return pointerFailureCode(err) == "" && !errors.Is(err, ErrTargetNotFound) && !errors.Is(err, bridge.ErrInvalidActionRequest)
