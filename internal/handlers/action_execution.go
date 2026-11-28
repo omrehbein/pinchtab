@@ -291,7 +291,7 @@ func (h *Handlers) executeActionResilient(ctx context.Context, req *bridge.Actio
 	}
 
 	var rr *recovery.RecoveryResult
-	if err != nil && !submitClick && req.Ref != "" && h.Recovery != nil && h.Recovery.ShouldAttempt(err, req.Ref) {
+	if err != nil && !pointerRetryForbidden(err) && !submitClick && req.Ref != "" && h.Recovery != nil && h.Recovery.ShouldAttempt(err, req.Ref) {
 		r2, recRes, recErr := h.Recovery.AttemptWithClassification(
 			ctx, resolvedTabID, req.Ref, req.Kind,
 			recovery.ClassifyFailure(err),
@@ -322,7 +322,7 @@ func switchedTabFromActionResult(result map[string]any) string {
 const pointerRetryDelay = 50 * time.Millisecond
 
 func shouldRetryPointerAction(req bridge.ActionRequest, err error) bool {
-	if err == nil {
+	if err == nil || pointerRetryForbidden(err) {
 		return false
 	}
 	kind := strings.ToLower(strings.TrimSpace(req.Kind))
@@ -340,6 +340,11 @@ func shouldRetryPointerAction(req bridge.ActionRequest, err error) bool {
 	}
 
 	return shouldRetryStaleRef(err)
+}
+
+func pointerRetryForbidden(err error) bool {
+	var final interface{ PointerRetryForbidden() bool }
+	return errors.As(err, &final) && final.PointerRetryForbidden()
 }
 
 // refreshActionSecondaryTargets re-resolves every selector-bearing field the request

@@ -350,63 +350,46 @@ func prePressClickError(err error) error {
 	return err
 }
 
+// clickBeforePressError retains the exact selected point for bounded recovery.
+type clickBeforePressError struct {
+	error
+	nodeID int64
+	x, y   float64
+}
+
+func (e clickBeforePressError) Unwrap() error { return e.error }
+func (e clickBeforePressError) ValidateClickRecovery(ctx context.Context, nodeID int64) error {
+	if nodeID != e.nodeID {
+		return finalPointerError(errors.New("click recovery target changed"))
+	}
+	return finalPointerError(validateClickPoint(ctx, nodeID, e.x, e.y))
+}
+
+// pointerFinalError preserves the public cause while refusing replay after movement.
+type pointerFinalError struct{ error }
+
+func (pointerFinalError) PointerRetryForbidden() bool { return true }
+func (e pointerFinalError) Unwrap() error             { return e.error }
+
+func finalPointerError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return pointerFinalError{err}
+}
+
 func ClickByNodeID(ctx context.Context, nodeID int64) error {
 	x, y, err := PointerPointForNode(ctx, nodeID, true)
 	if err != nil {
 		return err
 	}
-
-	// Only a completed validation followed by a failed move is safe to recover.
 	if err := chromedp.Run(ctx, mouseEventAction(map[string]any{"type": "mouseMoved", "x": x, "y": y})); err != nil {
-		return prePressClickError(err)
+		return clickBeforePressError{error: prePressClickError(err), nodeID: nodeID, x: x, y: y}
 	}
-	actions := mousePressReleaseActions(x, y, 1)
-	// CDP mouse events don't trigger default browser navigation on <a>
-	// elements. For links, fire a JS-level .click() so the browser
-	// follows the href.
-	actions = append(actions, chromedp.ActionFunc(func(ctx context.Context) error {
-		return jsClickIfLink(ctx, nodeID)
-	}))
-	return chromedp.Run(ctx, actions...)
-}
-
-func jsClickIfLink(ctx context.Context, nodeID int64) error {
-	var resolved json.RawMessage
-	if err := chromedp.FromContext(ctx).Target.Execute(ctx, "DOM.resolveNode", map[string]any{
-		"backendNodeId": nodeID,
-	}, &resolved); err != nil {
-		return nil
+	if err := validateClickPoint(ctx, nodeID, x, y); err != nil {
+		return finalPointerError(err)
 	}
-	var obj struct {
-		Object struct {
-			ObjectID string `json:"objectId"`
-		} `json:"object"`
-	}
-	if json.Unmarshal(resolved, &obj) != nil || obj.Object.ObjectID == "" {
-		return nil
-	}
-
-	const js = `function() {
-		var el = this;
-		while (el && el.nodeType === 1) {
-			if (el.tagName === 'A' && el.hasAttribute('href')) {
-				el.click();
-				return;
-			}
-			el = el.parentElement;
-		}
-	}`
-	err := chromedp.FromContext(ctx).Target.Execute(ctx,
-		"Runtime.callFunctionOn", map[string]any{
-			"functionDeclaration": js,
-			"objectId":            obj.Object.ObjectID,
-		}, nil)
-	if linkContextGone(err) {
-		// The trusted press already followed the link and the old document's
-		// context is gone: the click landed, so there is nothing left to do.
-		return nil
-	}
-	return err
+	return finalPointerError(chromedp.Run(ctx, mousePressReleaseActions(x, y, 1)...))
 }
 
 func linkContextGone(err error) bool {

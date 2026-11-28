@@ -612,7 +612,7 @@ func TestClickByNodeIDWithJSFallback_FallsBackOnlyOnTimeout(t *testing.T) {
 
 	var fallbackCalled bool
 	clickByNodeIDAction = func(context.Context, int64) error {
-		return errors.Join(bridgecdpops.ErrClickBeforePress, context.DeadlineExceeded)
+		return testClickRecoveryPhase{errors.Join(bridgecdpops.ErrClickBeforePress, context.DeadlineExceeded), func(context.Context, int64) error { return nil }}
 	}
 	jsClickByBackendNodeAction = func(context.Context, int64) error {
 		fallbackCalled = true
