@@ -88,14 +88,19 @@ func pointerPointForNode(ctx context.Context, backendNodeID int64, requireTopMos
 				if (!frameEl) return {mappingInvalid:true};
 				const frameRect = frameEl.getBoundingClientRect();
 				const frameStyle = current.parent.getComputedStyle(frameEl);
-				if (frameEl.clientLeft || frameEl.clientTop || [frameStyle.paddingLeft, frameStyle.paddingTop, frameStyle.paddingRight, frameStyle.paddingBottom].some(v => parseFloat(v) !== 0) || ![frameRect.left, frameRect.top, frameRect.width, frameRect.height].every(Number.isFinite)) return {mappingInvalid:true};
+				if ([frameStyle.paddingLeft, frameStyle.paddingTop, frameStyle.paddingRight, frameStyle.paddingBottom].some(v => parseFloat(v) !== 0) || ![frameRect.left, frameRect.top, frameRect.width, frameRect.height].every(Number.isFinite)) return {mappingInvalid:true};
 				for (let ancestor = frameEl; ancestor; ancestor = ancestor.assignedSlot || ancestor.parentElement || (ancestor.getRootNode && ancestor.getRootNode().host)) {
 					const s = current.parent.getComputedStyle(ancestor);
 					if (s.transform !== "none" || s.perspective !== "none" || [s.scale, s.rotate, s.translate].some(v => v && v !== "none") || (s.zoom && s.zoom !== "1" && s.zoom !== "normal")) return {mappingInvalid:true};
 				}
- frameChain.push({element:frameEl,doc:current.parent.document,left:frameRect.left,top:frameRect.top});
-				x += frameRect.left;
-				y += frameRect.top;
+				// DOM rectangles and resolved border widths share CSS pixel units.
+				// clientLeft/clientTop round fractional widths; preserve layout precision.
+				const contentLeft = frameRect.left + parseFloat(frameStyle.borderLeftWidth);
+				const contentTop = frameRect.top + parseFloat(frameStyle.borderTopWidth);
+				if (![contentLeft, contentTop].every(Number.isFinite)) return {mappingInvalid:true};
+				frameChain.push({element:frameEl,doc:current.parent.document,left:contentLeft,top:contentTop});
+				x += contentLeft;
+				y += contentTop;
 				current = current.parent;
 				topWindow = current;
 			}
