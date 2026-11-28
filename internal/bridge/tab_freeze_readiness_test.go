@@ -30,11 +30,15 @@ func TestFreezeProbeObserverReadiness(t *testing.T) {
 						return
 					}
 					w.Header().Set("Content-Type", "text/javascript")
-					fmt.Fprint(w, "document.addEventListener('freeze',()=>window.__froze=true);document.addEventListener('resume',()=>window.__resumed=true);window.__ready=true;")
+					if _, err := fmt.Fprint(w, "document.addEventListener('freeze',()=>window.__froze=true);document.addEventListener('resume',()=>window.__resumed=true);window.__ready=true;"); err != nil {
+						t.Errorf("serve freeze probe: %v", err)
+					}
 					return
 				}
 				w.Header().Set("Content-Type", "text/html")
-				fmt.Fprint(w, `<button id='b' onclick='document.title="clicked"'>go</button><script>window.__identity=crypto.randomUUID();window.__froze=false;window.__resumed=false;window.__ready=false;window.__install=fetch('/observers').then(r=>r.text()).then(s=>(0,eval)(s));</script>`)
+				if _, err := fmt.Fprint(w, `<button id='b' onclick='document.title="clicked"'>go</button><script>window.__identity=crypto.randomUUID();window.__froze=false;window.__resumed=false;window.__ready=false;window.__install=fetch('/observers').then(r=>r.text()).then(s=>(0,eval)(s));</script>`); err != nil {
+					t.Errorf("serve freeze probe: %v", err)
+				}
 			}))
 			defer server.Close()
 			defer unblock()
