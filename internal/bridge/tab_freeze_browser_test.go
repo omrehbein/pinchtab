@@ -17,6 +17,7 @@ const freezeProbePage = `<button id="b" onclick="document.title='clicked'">go</b
 window.__froze = false; window.__resumed = false;
 document.addEventListener('freeze', () => { window.__froze = true; });
 document.addEventListener('resume', () => { window.__resumed = true; });
+window.__freezeProbeReady = true;
 </script>`
 
 func TestFreezeIdleFreezesARealTabAndAnActionUnfreezesIt(t *testing.T) {
@@ -37,7 +38,7 @@ func TestFreezeIdleFreezesARealTabAndAnActionUnfreezesIt(t *testing.T) {
 	dataURL := "data:text/html;base64," + base64.StdEncoding.EncodeToString([]byte(freezeProbePage))
 	var raw target.ID
 	if err := chromedp.Run(browserCtx, chromedp.ActionFunc(func(ctx context.Context) error {
-		id, err := target.CreateTarget(dataURL).WithBackground(true).Do(ctx)
+		id, err := target.CreateTarget("about:blank").WithBackground(true).Do(ctx)
 		raw = id
 		return err
 	})); err != nil {
@@ -45,8 +46,14 @@ func TestFreezeIdleFreezesARealTabAndAnActionUnfreezesIt(t *testing.T) {
 	}
 	tabCtx, cancelTab := chromedp.NewContext(browserCtx, chromedp.WithTargetID(raw))
 	defer cancelTab()
-	if err := chromedp.Run(tabCtx); err != nil {
-		t.Fatalf("attach: %v", err)
+	setupCtx, cancelSetup := context.WithTimeout(tabCtx, 10*time.Second)
+	defer cancelSetup()
+	if err := chromedp.Run(setupCtx,
+		chromedp.Navigate(dataURL),
+		// Attaching alone does not establish readiness; background tabs do not run animation frames reliably.
+		chromedp.Poll(`window.__freezeProbeReady === true`, nil, chromedp.WithPollingInterval(10*time.Millisecond)),
+	); err != nil {
+		t.Fatalf("prepare lifecycle observers: %v", err)
 	}
 
 	tm := NewTabManager(browserCtx, &config.RuntimeConfig{TabLifecyclePolicy: "freeze_idle", TabCloseDelay: 50 * time.Millisecond}, nil, nil, nil)
