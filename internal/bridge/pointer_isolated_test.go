@@ -12,15 +12,15 @@ import (
 	"github.com/pinchtab/pinchtab/internal/testbrowser"
 )
 
-func newPointerFixture(t *testing.T, html string) context.Context {
+func newPointerFixture(t *testing.T, html string, options ...chromedp.ExecAllocatorOption) context.Context {
 	t.Helper()
-	alloc, cancelAlloc := chromedp.NewExecAllocator(context.Background(), append(
+	alloc, cancelAlloc := chromedp.NewExecAllocator(context.Background(), append(append(
 		chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.ExecPath(testbrowser.Path(t)),
 		chromedp.UserDataDir(testbrowser.ProfileDir(t)),
 		chromedp.Flag("headless", true),
 		chromedp.Flag("no-sandbox", true),
-	)...)
+	), options...)...)
 	ctx, cancelBrowser := chromedp.NewContext(alloc)
 	ctx, cancelTimeout := context.WithTimeout(ctx, 30*time.Second)
 	t.Cleanup(func() {
@@ -116,8 +116,131 @@ func TestPointerPointWalksNestedFrameOffsets(t *testing.T) {
 	}
 }
 
+func TestPointerPointBorderedNestedFrames(t *testing.T) {
+	for _, border := range []string{"0px", "2px", "5px", "1.5px", "2px 5px 3px 7px"} {
+		t.Run(border, func(t *testing.T) {
+			ctx := newPointerFixture(t, pointerFrameHTML, chromedp.Flag("force-device-scale-factor", "2"))
+			id := deepFrameNode(t, ctx)
+			if err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+				return chromedp.FromContext(ctx).Target.Execute(ctx, "Emulation.setDeviceMetricsOverride", map[string]any{"width": 1000, "height": 800, "deviceScaleFactor": 2, "mobile": false}, nil)
+			})); err != nil {
+				t.Fatal(err)
+			}
+			var expected []float64
+			script := `(()=>{const outer=document.getElementById("outer"), inner=outer.contentDocument.getElementById("inner"); for(const f of [outer,inner]){f.style.borderStyle="solid";f.style.borderWidth="` + border + `";} const b=inner.contentDocument.getElementById("deep"),r=b.getBoundingClientRect(),a=outer.getBoundingClientRect(),i=inner.getBoundingClientRect();return [r.left+r.width/2+a.left+i.left+parseFloat(getComputedStyle(outer).borderLeftWidth)+parseFloat(outer.contentWindow.getComputedStyle(inner).borderLeftWidth),r.top+r.height/2+a.top+i.top+parseFloat(getComputedStyle(outer).borderTopWidth)+parseFloat(outer.contentWindow.getComputedStyle(inner).borderTopWidth)];})()`
+			if err := chromedp.Run(ctx, chromedp.Evaluate(script, &expected)); err != nil {
+				t.Fatal(err)
+			}
+			if border == "1.5px" {
+				var resolved float64
+				if err := chromedp.Run(ctx, chromedp.Evaluate(`parseFloat(getComputedStyle(document.getElementById("outer")).borderLeftWidth)`, &resolved)); err != nil {
+					t.Fatal(err)
+				}
+				if resolved != 1.5 {
+					t.Fatalf("fractional border not exercised: %v", resolved)
+				}
+			}
+			x, y, err := cdpops.PointerPointForNode(ctx, id, true)
+			if err != nil {
+				t.Fatalf("border %s: %v", border, err)
+			}
+			if len(expected) != 2 || x != expected[0] || y != expected[1] {
+				t.Fatalf("point (%v,%v), expected %v", x, y, expected)
+			}
+			if err := ClickByCoordinate(ctx, x, y, 0); err != nil {
+				t.Fatal(err)
+			}
+			var hits int
+			if err := cdpops.CallFunctionOnNode(ctx, id, `function(){return Number(this.dataset.hits||0)}`, nil, &hits); err != nil {
+				t.Fatal(err)
+			}
+			if hits != 1 {
+				t.Fatalf("hits=%d, want 1", hits)
+			}
+		})
+	}
+}
+func TestPointerPointBorderedShadowSlot(t *testing.T) {
+	ctx := newPointerFixture(t, pointerFrameHTML)
+	if err := chromedp.Run(ctx, chromedp.Evaluate(`(()=>{const f=document.getElementById("outer");f.style.border="2px solid";const h=document.createElement("div");document.body.append(h);const r=h.attachShadow({mode:"open"});const h2=document.createElement("div");r.append(h2);h2.attachShadow({mode:"open"}).innerHTML="<slot></slot>";h2.append(f);})()`, nil)); err != nil {
+		t.Fatal(err)
+	}
+	id := deepFrameNode(t, ctx)
+	if err := cdpops.ClickByNodeID(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	var hits int
+	if err := cdpops.CallFunctionOnNode(ctx, id, `function(){return Number(this.dataset.hits||0)}`, nil, &hits); err != nil {
+		t.Fatal(err)
+	}
+	if hits != 1 {
+		t.Fatalf("hits=%d, want 1", hits)
+	}
+	if err := chromedp.Run(ctx, chromedp.Evaluate(`(()=>{const c=document.createElement("div");c.style="position:fixed;inset:0;background:black;z-index:999";document.body.append(c)})()`, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := cdpops.PointerPointForNode(ctx, id, true); !errors.Is(err, cdpops.ErrElementOccluded) {
+		t.Fatalf("overlay: %v", err)
+	}
+}
+
+func TestPointerPointBorderChangeBeforePress(t *testing.T) {
+	ctx := newPointerFixture(t, pointerFrameHTML)
+	id := deepFrameNode(t, ctx)
+	if err := cdpops.CallFunctionOnNode(ctx, id, `function(){this.addEventListener("mousemove",()=>{window.parent.parent.document.getElementById("outer").style.border="80px solid black"},{once:true});}`, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := cdpops.ClickByNodeID(ctx, id); err == nil {
+		t.Fatal("changed geometry accepted")
+	}
+	var hits int
+	if err := cdpops.CallFunctionOnNode(ctx, id, `function(){return Number(this.dataset.hits||0)}`, nil, &hits); err != nil {
+		t.Fatal(err)
+	}
+	if hits != 0 {
+		t.Fatalf("hits=%d, want 0", hits)
+	}
+}
+func TestPointerPointBorderedShadowTargetAfterScroll(t *testing.T) {
+	ctx := newPointerFixture(t, pointerFrameHTML)
+	id := deepFrameNode(t, ctx)
+	if err := cdpops.CallFunctionOnNode(ctx, id, `function(){const h=this.ownerDocument.createElement("div");this.parentElement.append(h);h.attachShadow({mode:"open"}).append(this);this.style.top="600px";window.parent.parent.document.getElementById("outer").style.border="2px solid";window.parent.document.getElementById("inner").style.border="3px solid";}`, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := cdpops.ClickByNodeID(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	var hits int
+	if err := cdpops.CallFunctionOnNode(ctx, id, `function(){return Number(this.dataset.hits||0)}`, nil, &hits); err != nil {
+		t.Fatal(err)
+	}
+	if hits != 1 {
+		t.Fatalf("hits=%d, want 1", hits)
+	}
+}
+
+func TestPointerPointSlotChangeBeforePress(t *testing.T) {
+	ctx := newPointerFixture(t, pointerFrameHTML)
+	if err := chromedp.Run(ctx, chromedp.Evaluate(`(()=>{const f=document.getElementById("outer"),h=document.createElement("div");document.body.append(h);h.attachShadow({mode:"open"}).innerHTML="<slot name=a></slot><slot name=b style=display:none></slot>";f.slot="a";f.style.border="2px solid";h.append(f);})()`, nil)); err != nil {
+		t.Fatal(err)
+	}
+	id := deepFrameNode(t, ctx)
+	if err := cdpops.CallFunctionOnNode(ctx, id, `function(){this.addEventListener("mousemove",()=>{window.parent.parent.document.getElementById("outer").slot="b"},{once:true});}`, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := cdpops.ClickByNodeID(ctx, id); err == nil {
+		t.Fatal("redistributed frame accepted")
+	}
+	var hits int
+	if err := cdpops.CallFunctionOnNode(ctx, id, `function(){return Number(this.dataset.hits||0)}`, nil, &hits); err != nil {
+		t.Fatal(err)
+	}
+	if hits != 0 {
+		t.Fatalf("hits=%d, want 0", hits)
+	}
+}
 func TestPointerPointRefusesUnverifiedFrameMapping(t *testing.T) {
-	for _, style := range []string{"border:5px solid black", "transform:scale(1.2)", "padding:20px", "scale:1.2", "rotate:10deg"} {
+	for _, style := range []string{"transform:scale(1.2)", "padding:20px", "scale:1.2", "rotate:10deg"} {
 		t.Run(style, func(t *testing.T) {
 			ctx := newPointerFixture(t, pointerFrameHTML)
 			id := deepFrameNode(t, ctx)
